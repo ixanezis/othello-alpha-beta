@@ -219,9 +219,10 @@ struct World {
                     break;
                 }
 
-                if (s[newp.x][newp.y] == enemyindex) {
-                    hasEnemyInThisDir = true;
-                }
+                if (s[newp.x][newp.y] != enemyindex)
+                    throw runtime_error("enemy disc is expected here");
+
+                hasEnemyInThisDir = true;
             }
 
             newp = p;
