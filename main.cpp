@@ -410,6 +410,8 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
     //if (enemygo)
         //cerr << "Calculating score for world: (index " << myindex << ")\n" << world << endl;
 
+    //score += world.discs[myindex - 1].bitcount();
+
     Mask maskAroundFrontier;
     for (Mask emptyFrontier = world.discs[myindex-1]; emptyFrontier.mask;) {
         int index = emptyFrontier.removeRightMost();
@@ -602,6 +604,7 @@ int main(int argc, char** argv) {
     int score = -INF;
 
     cerr << "World:\n" << world << endl;
+    cerr << "free cells: " << world.free << endl;
 
     //world.makeMove(Point{9, 2}, myindex);
 
