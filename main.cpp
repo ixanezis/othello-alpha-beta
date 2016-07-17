@@ -276,16 +276,11 @@ struct World {
 
         for (int i=0; i<N; ++i) {
             for (int u=0; u<N; ++u) {
-                if (obj.get(i, u) == 0) {
-                    for (int dir=0; dir<DC[i][u]; ++dir) {
-                        newp.x = i + D[i][u][dir].x;
-                        newp.y = u + D[i][u][dir].y;
-                        checkinside(newp);
-                        if (obj.get(newp.x, newp.y) != 0) {
-                            obj.emptyFrontier.setbit(index(i, u));
-                            break;
-                        }
-                    }
+                const int ind = index(i, u);
+                const Mask bothdiscs = obj.discs[0] | obj.discs[1];
+                if (bothdiscs.getbit(ind) == 0) {
+                    if ((around[ind] & bothdiscs).mask != 0)
+                        obj.emptyFrontier.togglebit(ind, 0);
                 }
             }
         }
