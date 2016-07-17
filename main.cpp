@@ -320,13 +320,13 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
 
     if (enemygo) {
         if (world.discs[enemyindex - 1].mask == 0) {
-            if (world.discs[myindex - 1].mask == 0)
-                throw runtime_error("world is invalid 3");
+            //if (world.discs[myindex - 1].mask == 0)
+                //throw runtime_error("world is invalid 3");
             return INF + deep; // the sooner I win, the better
         }
         if (world.discs[myindex - 1].mask == 0) {
-            if (world.discs[enemyindex - 1].mask == 0)
-                throw runtime_error("world is invalid 4");
+            //if (world.discs[enemyindex - 1].mask == 0)
+                //throw runtime_error("world is invalid 4");
             return -INF - deep; // the later I loose, the better
         }
 
@@ -349,45 +349,13 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
         maskAroundFrontier |= around[index];
     }
 
-    //if (enemygo)
-        //cerr << "maskAroundFrontier:\n" << maskAroundFrontier << endl;
     maskAroundFrontier &= world.emptyFrontier;
-    //if (enemygo) {
-        //cerr << "maskAroundFrontier after &:\n" << maskAroundFrontier << endl;
-        //cerr << "its bitcount: " << maskAroundFrontier.bitcount() << endl;
-    //}
     
-    //score += world.discs[myindex].bitcount();
     score -= maskAroundFrontier.bitcount();
 
     // score for capturing the corner:
     Mask myCorner = cornerMask & world.discs[myindex - 1];
-    score += myCorner.bitcount() * (100 + deep); // the earlier I get the corner, the better
-
-    /*
-    int corner = 0;
-    int border = 0;
-    int total = 0;
-    bool hasenemy = false;
-
-    for (int i=0; i<N; ++i) {
-        for (int u=0; u<N; ++u) {
-            if (world.get(i, u) == myindex) {
-                ++total;
-                border += isborder[i][u];
-                corner += iscorner[i][u];
-            }
-            hasenemy |= world.get(i, u) == enemyindex;
-        }
-    }
-
-    if (!hasenemy) // evaporate him
-        return INF;
-
-    score += corner * 100;
-    score += border * 10;
-    score += total;
-    */
+    score += myCorner.bitcount() * 100;
 
     if (enemygo)
         score -= calcScore(world, 3 - myindex, deep, false);
@@ -434,12 +402,11 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
                 //cerr << ' ';
             //cerr << myindex << " made a move " << cur << endl;
             int score = 0;
-            score = calcScore(w, myindex, deep);
             //for (int i=0; i<4-deep; ++i)
                 //cerr << ' ';
             //cerr << "score: " << score << endl;
 
-            if (deep > 1 && w.free != 0 && score < INF - 100) {
+            if (deep > 1 && w.free != 0) {
                 pair<Point, int> bestMove = findBestMove(w, 3 - myindex, deep - 1, -beta, -alpha);
 
                 if (bestMove.first.x == -1) {
@@ -449,13 +416,16 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
 
                     if (bestMove.first.x == -1) {
                         // I also cannot make a move
-                        // The game is over, use the score already calculated
+                        // The game is over
+                        score = calcScore(w, myindex, deep);
                     } else {
                         score = bestMove.second;
                     }
                 } else {
                     score = -bestMove.second;
                 }
+            } else {
+                score = calcScore(w, myindex, deep);
             }
 
             if (score > bestScore) {
@@ -464,7 +434,7 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
             }
 
             alpha = max(alpha, score);
-            if (alpha > beta) {
+            if (alpha >= beta) {
                 break;
             }
         }
@@ -530,7 +500,7 @@ int main(int argc, char** argv) {
 
     //return 0;
 
-    for (int depth=4; depth<=8; ++depth) {
+    for (int depth=5; depth<=8; ++depth) {
     //for (int depth=4; depth<=4; ++depth) {
         //cache.clear();
         try {
