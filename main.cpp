@@ -75,21 +75,6 @@ void checkinside(const Point& p) {
 
 Point points[128];
 
-/*
-struct CacheValue {
-    enum class Type {
-        EXACT,
-        LOWERBOUND,
-        UPPERBOUND,
-        UNKNOWN
-    };
-    pair<Point, int> movscore;
-    Type type;
-    
-    CacheValue() : type(Type::UNKNOWN) {}
-};
-*/
-
 struct Mask {
     uint128 mask;
 
@@ -206,41 +191,33 @@ struct World {
     Mask discs[2];
     int free;
 
+    pair<uint128, uint128> hashpair() const {
+        return {discs[0].mask, discs[1].mask};
+    }
+
     bool makeMove(const Point& p, const int myindex) {
         const int enemyindex = 3 - myindex;
 
         const Mask bothdiscs = discs[0] | discs[1];
-        //cerr << "bothdiscs:\n" << bothdiscs << endl;
         const Mask empty = ~bothdiscs;
-        //cerr << "empty:\n" << empty << endl;
 
         Mask totalMask;
         for (int dir=0; dir<DIR; ++dir) {
             const Mask myInDir = discs[myindex - 1] & lineMask1[p.x][p.y][dir];
 
             if (myInDir.mask != 0) {
-                //cerr << "myInDir for dir " << dir << ":\n" << myInDir << endl;
-
                 int closest = myInDir.closest(dir);
-
-                //cerr << "closest: " << closest << endl;
 
                 if ((empty & lineMask2[p.x][p.y][closest]).mask != 0) // this direction intersects an empty region
                     continue;
 
-                //cerr << "direction does not intersect with empty region" << endl;
-
                 totalMask |= lineMask2[p.x][p.y][closest];
-
-                //cerr << "totalMask:\n" << totalMask << endl;
             }
         }
 
         if (totalMask.mask == 0) return false; // cannot make a move
 
         --free;
-
-        //cerr << "can make a move" << endl;
 
         const int ind = index(p.x, p.y);
 
@@ -251,60 +228,6 @@ struct World {
         emptyFrontier |= around[ind];
         emptyFrontier &= empty;
         emptyFrontier.togglebit(ind, 1);
-
-        /*
-        bool canMove = false;
-        for (int dir=0; dir<DIR; ++dir) {
-            newp = p;
-            bool hasEnemyInThisDir = false;
-            bool hasMeInThisDir = false;
-            for (;;) {
-                newp.x += dx[dir];
-                newp.y += dy[dir];
-
-                if (!inside(newp)) break;
-
-                if (s[newp.x][newp.y] == 0)
-                    break;
-
-                if (s[newp.x][newp.y] == myindex) {
-                    canMove |= hasEnemyInThisDir;
-                    hasMeInThisDir = true;
-                    break;
-                }
-
-                if (s[newp.x][newp.y] != enemyindex)
-                    throw runtime_error("enemy disc is expected here");
-
-                hasEnemyInThisDir = true;
-            }
-
-            newp = p;
-            if (canMove && hasMeInThisDir) {
-                for (;;) {
-                    newp.x += dx[dir];
-                    newp.y += dy[dir];
-
-                    if (get(newp.x, newp.y) == myindex)
-                        break;
-
-                    s[newp.x][newp.y] = myindex;
-                    discs[myindex - 1].togglebit(index(newp.x, newp.y), 0);
-                    discs[enemyindex - 1].togglebit(index(newp.x, newp.y), 1);
-                }
-            }
-        }
-
-        if (!canMove) return false;
-
-        --free;
-
-        s[p.x][p.y] = myindex;
-        const int ind = index(p.x, p.y);
-        discs[myindex - 1].togglebit(ind, 0);
-        emptyFrontier |= around[ind];
-        emptyFrontier &= ~(discs[0] | discs[1]);
-        */
 
         return true;
     }
@@ -412,6 +335,7 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
 
     //score += world.discs[myindex - 1].bitcount();
 
+    /*
     Mask maskAroundFrontier;
     for (Mask emptyFrontier = world.discs[myindex-1]; emptyFrontier.mask;) {
         int index = emptyFrontier.removeRightMost();
@@ -422,6 +346,7 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
     maskAroundFrontier &= world.emptyFrontier;
     
     score -= maskAroundFrontier.bitcount();
+    */
 
     // score for capturing the corner:
     Mask myCorner = cornerMask & world.discs[myindex - 1];
@@ -439,25 +364,39 @@ double elapsed() {
     return static_cast<double>(clock()) / CLOCKS_PER_SEC;
 }
 
-//int g_sum = 0;
+int g_sum = 0;
+
+struct CacheValue {
+    enum class Type {
+        EXACT,
+        LOWERBOUND,
+        UPPERBOUND,
+        UNKNOWN
+    };
+    pair<Point, int> movscore;
+    Type type;
+    
+    CacheValue() : type(Type::UNKNOWN) {}
+};
+
+map<pair<uint128, uint128>, CacheValue> cache;
 
 pair<Point, int> findBestMove(const World& world, const int myindex, const int deep, int alpha, int beta) {
-    /*
     const double alphaoriginal = alpha;
     CacheValue& cached = cache[world.hashpair()];
-    if (cached.movscore.first.column != -1) {
+    if (cached.movscore.first.x != -1) {
         if (cached.type == CacheValue::Type::EXACT) return cached.movscore;
         if (cached.type == CacheValue::Type::LOWERBOUND) alpha = max(alpha, cached.movscore.second);
         if (cached.type == CacheValue::Type::UPPERBOUND) beta = min(beta, cached.movscore.second);
         if (alpha > beta) return cached.movscore;
+    } else {
+        cached.movscore.second = -INF - 100;
     }
-    */
+
     if (check && elapsed() > TIME_LIMIT) throw TimeLimit{};
 
-    //++g_sum;
-
-    Point bestMove;
-    int bestScore = -INF - 100;
+    Point& bestMove = cached.movscore.first;
+    int& bestScore = cached.movscore.second;
 
     Mask mask = world.emptyFrontier;
     for (; mask.mask != 0; ) {
@@ -505,19 +444,19 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
             }
 
             alpha = max(alpha, score);
-            if (alpha >= beta) {
+            if (alpha >= beta)
                 break;
-            }
         }
     }
 
-    //cached.movscore = make_pair(bestMove, bestScore);
-    //if (bestScore <= alphaoriginal) cached.type = CacheValue::Type::UPPERBOUND;
-    //else if (bestScore >= beta) cached.type = CacheValue::Type::LOWERBOUND;
-    //else cached.type = CacheValue::Type::EXACT;
-    //return cached.movscore;
+    //return {bestMove, bestScore};
 
-    return {bestMove, bestScore};
+    //cached.movscore = make_pair(bestMove, bestScore);
+    if (bestScore <= alphaoriginal) cached.type = CacheValue::Type::UPPERBOUND;
+    else if (bestScore >= beta) cached.type = CacheValue::Type::LOWERBOUND;
+    else cached.type = CacheValue::Type::EXACT;
+
+    return cached.movscore;
 }
 
 void initpoints() {
@@ -612,21 +551,23 @@ int main(int argc, char** argv) {
     //cerr << "empty frontier after move:\n" << world.emptyFrontier << endl;
     //return 0;
 
-    for (int depth=5; depth<=8; ++depth) {
-    //for (int depth=3; depth<=3; ++depth) {
-        //cache.clear();
+    for (int depth=5; depth<=9; ++depth) {
+    //for (int depth=6; depth<=6; ++depth) {
+        cache.clear();
         try {
-            pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF, INF);
+            pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF - 111, INF + 111);
             mov = bestMove.first;
             score = bestMove.second;
             cerr << "depth: " << depth << ", move: " << bestMove.first << ", score: " << bestMove.second << endl;
 
+            //cerr << "g_sum: " << g_sum << endl;
+            //cerr << "visitedPositions: " << visitedPositions.size() << endl;
             //World w = world;
             //w.makeMove(mov, myindex);
             //cerr << "after this move world:\n" << w << endl;
             //cerr << "after this move empty frontier: \n" << w.emptyFrontier << endl;
 
-            check = true;
+            //check = true;
         } catch (const TimeLimit& t) {
             break;
         }
