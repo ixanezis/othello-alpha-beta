@@ -183,11 +183,12 @@ Mask around[128];
 Mask cornerMask;
 Mask lineMask1[N][N][DIR];
 Mask lineMask2[N][N][N*N];
+Mask lineAround2[N][N][N*N];
 
 Point newp;
 
 struct World {
-    Mask emptyFrontier;
+    Mask emptyFrontier[2];
     Mask discs[2];
     int free;
 
@@ -198,10 +199,10 @@ struct World {
     bool makeMove(const Point& p, const int myindex) {
         const int enemyindex = 3 - myindex;
 
-        const Mask bothdiscs = discs[0] | discs[1];
-        const Mask empty = ~bothdiscs;
+        Mask empty = ~(discs[0] | discs[1]);
 
         Mask totalMask;
+        Mask totalLineAround;
         for (int dir=0; dir<DIR; ++dir) {
             const Mask myInDir = discs[myindex - 1] & lineMask1[p.x][p.y][dir];
 
@@ -212,6 +213,7 @@ struct World {
                     continue;
 
                 totalMask |= lineMask2[p.x][p.y][closest];
+                totalLineAround |= lineAround2[p.x][p.y][closest];
             }
         }
 
@@ -225,16 +227,17 @@ struct World {
         discs[myindex - 1] ^= totalMask;
         discs[myindex - 1].togglebit(ind, 0);
 
-        emptyFrontier |= around[ind];
-        emptyFrontier &= empty;
-        emptyFrontier.togglebit(ind, 1);
+        emptyFrontier[myindex - 1] |= totalLineAround;
+        empty.togglebit(ind, 1);
+        emptyFrontier[0] &= empty;
+        emptyFrontier[1] &= empty;
 
         return true;
     }
 
     friend istream& operator >>(istream& in, World& obj) {
         obj.free = N*N;
-        obj.emptyFrontier = Mask{};
+        obj.emptyFrontier[0] = obj.emptyFrontier[1] = Mask{};
         obj.discs[0] = obj.discs[1] = Mask{};
 
         for (int i=0; i<N; ++i) {
@@ -254,13 +257,17 @@ struct World {
         for (int i=0; i<N; ++i) {
             for (int u=0; u<N; ++u) {
                 const int ind = index(i, u);
-                const Mask bothdiscs = obj.discs[0] | obj.discs[1];
-                if (bothdiscs.getbit(ind) == 0) {
-                    if ((around[ind] & bothdiscs).mask != 0)
-                        obj.emptyFrontier.togglebit(ind, 0);
+                for (int player=0; player<2; ++player) {
+                    if (obj.discs[player].getbit(ind)) {
+                        obj.emptyFrontier[player] |= around[ind];
+                    }
                 }
             }
         }
+
+        Mask empty = ~(obj.discs[0] | obj.discs[1]);
+        obj.emptyFrontier[0] &= empty;
+        obj.emptyFrontier[1] &= empty;
 
         return in;
     }
@@ -290,25 +297,6 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
 
     const int enemyindex = 3 - myindex;
 
-    // check
-    /*
-    for (int i=0; i<N; ++i) {
-        for (int u=0; u<N; ++u) {
-            if (world.get(i, u) == 0) {
-                if (world.discs[0].getbit(index(i, u)) || world.discs[1].getbit(index(i, u)))
-                    throw runtime_error("world is invalid");
-            } else if (world.get(i, u) == 1) {
-                if (!world.discs[0].getbit(index(i, u)))
-                    throw runtime_error("world is invalid 1");
-            } else if (world.get(i, u) == 2) {
-                if (!world.discs[1].getbit(index(i, u)))
-                    throw runtime_error("world is invalid 2");
-            }
-        }
-    }
-    */
-    // end check
-
     if (enemygo) {
         if (world.discs[enemyindex - 1].mask == 0) {
             //if (world.discs[myindex - 1].mask == 0)
@@ -335,18 +323,7 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
 
     //score += world.discs[myindex - 1].bitcount();
 
-    /*
-    Mask maskAroundFrontier;
-    for (Mask emptyFrontier = world.discs[myindex-1]; emptyFrontier.mask;) {
-        int index = emptyFrontier.removeRightMost();
-        //cerr << "point " << points[index] << endl;
-        maskAroundFrontier |= around[index];
-    }
-
-    maskAroundFrontier &= world.emptyFrontier;
-    
-    score -= maskAroundFrontier.bitcount();
-    */
+    score -= world.emptyFrontier[myindex - 1].bitcount();
 
     // score for capturing the corner:
     Mask myCorner = cornerMask & world.discs[myindex - 1];
@@ -355,6 +332,13 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo = tr
     if (enemygo)
         score -= calcScore(world, 3 - myindex, deep, false);
 
+    /*
+    if (score == 16 && deep == 1) {
+        cerr << "score is 16:\n" << world << endl;
+        cerr << "emptyFrontiers:\n" << endl;
+        cerr << world.emptyFrontier[0] << endl << world.emptyFrontier[1] << endl;
+    }
+    */
     return score;
 }
 
@@ -395,14 +379,16 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
 
     if (check && elapsed() > TIME_LIMIT) throw TimeLimit{};
 
+    const int enemyindex = 3 - myindex;
+
     Point& bestMove = cached.movscore.first;
     int& bestScore = cached.movscore.second;
 
-    Mask mask = world.emptyFrontier;
+    Mask mask = world.emptyFrontier[enemyindex - 1];
     for (; mask.mask != 0; ) {
         //cerr << "mask:\n" << mask << endl;
         const Point& cur = points[mask.removeRightMost()];
-        //if (world.get(cur.x, cur.y) != 0)
+        //if ((world.discs[0] | world.discs[1]).getbit(index(cur.x, cur.y)))
             //throw runtime_error("empty frontier is invalid");
 
         World w = world;
@@ -511,6 +497,7 @@ void initLineMasks() {
             Point cur{i, u};
             for (int dir=0; dir<DIR; ++dir) {
                 newp = cur;
+                Mask curLineAround = around[index(i, u)];
 
                 for (;;) {
                     newp.x += dx[dir];
@@ -521,6 +508,9 @@ void initLineMasks() {
                     const int ind = index(newp.x, newp.y);
                     lineMask2[i][u][ind] = lineMask1[i][u][dir];
                     lineMask1[i][u][dir].togglebit(ind, 0);
+
+                    lineAround2[i][u][ind] = curLineAround;
+                    curLineAround |= around[ind];
                 }
             }
         }
@@ -544,15 +534,10 @@ int main(int argc, char** argv) {
 
     cerr << "World:\n" << world << endl;
     cerr << "free cells: " << world.free << endl;
+    int maxdepth = 0;
 
-    //world.makeMove(Point{9, 2}, myindex);
-
-    //cerr << "world after move:\n" << world << endl;
-    //cerr << "empty frontier after move:\n" << world.emptyFrontier << endl;
-    //return 0;
-
-    for (int depth=5; depth<=9; ++depth) {
-    //for (int depth=6; depth<=6; ++depth) {
+    for (int depth=6; depth<=11; ++depth) {
+    //for (int depth=9; depth<=9; ++depth) {
         cache.clear();
         try {
             pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF - 111, INF + 111);
@@ -565,16 +550,18 @@ int main(int argc, char** argv) {
             //World w = world;
             //w.makeMove(mov, myindex);
             //cerr << "after this move world:\n" << w << endl;
-            //cerr << "after this move empty frontier: \n" << w.emptyFrontier << endl;
+            //cerr << "after this move empty frontier:\n" << w.emptyFrontier[0] << endl;
+            //cerr << "after this move empty frontier:\n" << w.emptyFrontier[1] << endl;
 
-            //check = true;
+            check = true;
+            maxdepth = depth;
         } catch (const TimeLimit& t) {
             break;
         }
     }
 
     cout << mov << endl;
-    cout << score << endl;
+    cout << score << ' ' << maxdepth << endl;
     cerr << "Elapsed: " << elapsed() << endl;
     //cerr << "g_sum = " << g_sum << endl;
 #ifdef DEBUG
