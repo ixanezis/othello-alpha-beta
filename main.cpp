@@ -75,8 +75,16 @@ struct Point {
     }
 };
 
+int DC[N][N];
+Point D[N][N][8];
+
 bool inside(const Point& p) {
     return p.x >= 0 && p.y >= 0 && p.x < N && p.y < N;
+}
+
+void checkinside(const Point& p) {
+    if (!inside(p))
+        throw runtime_error("point must be inside the world");
 }
 
 Point points[128];
@@ -196,7 +204,7 @@ struct World {
             newp = p;
             bool hasEnemyInThisDir = false;
             bool hasMeInThisDir = false;
-            for (int go=0; ; ++go) {
+            for (;;) {
                 newp.x += dx[dir];
                 newp.y += dy[dir];
 
@@ -218,7 +226,7 @@ struct World {
 
             newp = p;
             if (canMove && hasMeInThisDir) {
-                for (int go=0; ;++go) {
+                for (;;) {
                     newp.x += dx[dir];
                     newp.y += dy[dir];
 
@@ -268,10 +276,11 @@ struct World {
         for (int i=0; i<N; ++i) {
             for (int u=0; u<N; ++u) {
                 if (obj.get(i, u) == 0) {
-                    for (int dir=0; dir<DIR; ++dir) {
-                        newp.x = i + dx[dir];
-                        newp.y = u + dy[dir];
-                        if (inside(newp) && obj.get(newp.x, newp.y) != 0) {
+                    for (int dir=0; dir<DC[i][u]; ++dir) {
+                        newp.x = i + D[i][u][dir].x;
+                        newp.y = u + D[i][u][dir].y;
+                        checkinside(newp);
+                        if (obj.get(newp.x, newp.y) != 0) {
                             obj.emptyFrontier.setbit(index(i, u));
                             break;
                         }
@@ -470,7 +479,6 @@ void initaround() {
 }
 
 void initcornermask() {
-    cornerMask = Mask{};
     for (int i=0; i<N; ++i) {
         for (int u=0; u<N; ++u) {
             if (iscorner[i][u])
@@ -479,10 +487,28 @@ void initcornermask() {
     }
 }
 
+void initD() {
+    for (int i=0; i<N; ++i) {
+        for (int u=0; u<N; ++u) {
+            Point cur{i, u};
+            for (int dir=0; dir<DIR; ++dir) {
+                newp.x = cur.x + dx[dir];
+                newp.y = cur.y + dy[dir];
+
+                if (inside(newp)) {
+                    D[i][u][DC[i][u]] = Point{dx[dir], dy[dir]};
+                    ++DC[i][u];
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     initpoints();
     initaround();
     initcornermask();
+    initD();
 
     World world;
     cin >> world;
@@ -493,12 +519,6 @@ int main(int argc, char** argv) {
     int score = -INF;
 
     cerr << "World:\n" << world << endl;
-
-    //world.makeMove(Point{1, 3}, myindex);
-
-    //cerr << "after 1 3:\n" << world << endl;
-
-    //return 0;
 
     for (int depth=5; depth<=8; ++depth) {
     //for (int depth=4; depth<=4; ++depth) {
