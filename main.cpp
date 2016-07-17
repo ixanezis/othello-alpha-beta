@@ -17,8 +17,8 @@ const int N = 10;
 const int INF = 0x7f7f7f7f;
 
 const int DIR = 8;
-const int dx[DIR] = {-1, -1, -1, 0, 0, 1, 1, 1};
-const int dy[DIR] = {-1, 0, 1, -1, 1, -1, 0, 1};
+const int dx[DIR] = {0, -1,-1,-1, 0, 1, 1, 1};
+const int dy[DIR] = {-1,-1, 0, 1, 1, 1, 0,-1};
 
 inline int index(int x, int y) {
     return x * N + y;
@@ -27,20 +27,6 @@ inline int index(int x, int y) {
 class TimeLimit : public std::exception {};
 
 typedef unsigned __int128 uint128;
-
-int isborder[N][N] = {
-    {1,1,1,1,1, 1,1,1,1,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,0,0,0,0, 0,0,0,0,1},
-    {1,1,1,1,1, 1,1,1,1,1},
-};
 
 int iscorner[N][N] = {
     {1,0,0,0,0, 0,0,0,0,1},
@@ -89,6 +75,7 @@ void checkinside(const Point& p) {
 
 Point points[128];
 
+/*
 struct CacheValue {
     enum class Type {
         EXACT,
@@ -101,6 +88,7 @@ struct CacheValue {
     
     CacheValue() : type(Type::UNKNOWN) {}
 };
+*/
 
 struct Mask {
     uint128 mask;
@@ -133,6 +121,19 @@ struct Mask {
         return lo * (islopartnull ^ 1) + (hi + 64) * islopartnull;
     }
 
+    int leftMost() const {
+        unsigned long long hipart = mask >> 64;
+        int lo = __builtin_clzll(mask & 0xFFFFFFFFFFFFFFFFull);
+        int hi = __builtin_clzll(hipart);
+        int ishipartnull = hipart == 0;
+        return (63 - lo) * ishipartnull + (127 - hi) * (ishipartnull ^ 1);
+    }
+
+    int closest(const int dir) const {
+        if (dir < 4) return leftMost();
+        return rightMost();
+    }
+
     int removeRightMost() {
         int pos = rightMost();
         togglebit(pos, 1);
@@ -143,9 +144,10 @@ struct Mask {
         return __builtin_popcountll(mask & 0xFFFFFFFFFFFFFFFFull) + __builtin_popcountll(mask >> 64);
     }
 
-    Mask& operator ~() {
-        mask = ~mask;
-        return *this;
+    Mask operator ~() const {
+        Mask ret = *this;
+        ret.mask = ~ret.mask;
+        return ret;
     }
 
     Mask& operator &= (const Mask& ot) {
@@ -170,6 +172,17 @@ struct Mask {
         return ret;
     }
 
+    Mask& operator ^= (const Mask& ot) {
+        mask ^= ot.mask;
+        return *this;
+    }
+
+    Mask operator ^ (const Mask& ot) const {
+        Mask ret = *this;
+        ret ^= ot;
+        return ret;
+    }
+
     friend ostream& operator <<(ostream& out, const Mask& obj) {
         for (int i=0; i<N; ++i) {
             for (int u=0; u<N; ++u) {
@@ -183,22 +196,63 @@ struct Mask {
 
 Mask around[128];
 Mask cornerMask;
+Mask lineMask1[N][N][DIR];
+Mask lineMask2[N][N][N*N];
 
 Point newp;
 
 struct World {
-    uint8_t s[N][N];
     Mask emptyFrontier;
     Mask discs[2];
     int free;
 
-    uint8_t get(int i, int u) const {
-        return s[i][u];
-    }
+    bool makeMove(const Point& p, const int myindex) {
+        const int enemyindex = 3 - myindex;
 
-    bool makeMove(const Point& p, int myindex) {
-        int enemyindex = 3 - myindex;
+        const Mask bothdiscs = discs[0] | discs[1];
+        //cerr << "bothdiscs:\n" << bothdiscs << endl;
+        const Mask empty = ~bothdiscs;
+        //cerr << "empty:\n" << empty << endl;
 
+        Mask totalMask;
+        for (int dir=0; dir<DIR; ++dir) {
+            const Mask myInDir = discs[myindex - 1] & lineMask1[p.x][p.y][dir];
+
+            if (myInDir.mask != 0) {
+                //cerr << "myInDir for dir " << dir << ":\n" << myInDir << endl;
+
+                int closest = myInDir.closest(dir);
+
+                //cerr << "closest: " << closest << endl;
+
+                if ((empty & lineMask2[p.x][p.y][closest]).mask != 0) // this direction intersects an empty region
+                    continue;
+
+                //cerr << "direction does not intersect with empty region" << endl;
+
+                totalMask |= lineMask2[p.x][p.y][closest];
+
+                //cerr << "totalMask:\n" << totalMask << endl;
+            }
+        }
+
+        if (totalMask.mask == 0) return false; // cannot make a move
+
+        --free;
+
+        //cerr << "can make a move" << endl;
+
+        const int ind = index(p.x, p.y);
+
+        discs[enemyindex - 1] ^= totalMask;
+        discs[myindex - 1] ^= totalMask;
+        discs[myindex - 1].togglebit(ind, 0);
+
+        emptyFrontier |= around[ind];
+        emptyFrontier &= empty;
+        emptyFrontier.togglebit(ind, 1);
+
+        /*
         bool canMove = false;
         for (int dir=0; dir<DIR; ++dir) {
             newp = p;
@@ -250,6 +304,7 @@ struct World {
         discs[myindex - 1].togglebit(ind, 0);
         emptyFrontier |= around[ind];
         emptyFrontier &= ~(discs[0] | discs[1]);
+        */
 
         return true;
     }
@@ -265,7 +320,6 @@ struct World {
                 in >> cur;
                 if (cur == 3)
                     cur = 0;
-                obj.s[i][u] = cur;
 
                 if (cur != 0) {
                     --obj.free;
@@ -291,7 +345,16 @@ struct World {
     friend ostream& operator <<(ostream& out, const World& obj) {
         for (int i=0; i<N; ++i) {
             for (int u=0; u<N; ++u) {
-                out << static_cast<int>(obj.s[i][u]) << ' ';
+                int value = 0;
+                const int ind = index(i, u);
+                if (obj.discs[0].getbit(ind) && obj.discs[1].getbit(ind))
+                    throw runtime_error("both discs in same place");
+
+                if (obj.discs[0].getbit(ind))
+                    value = 1;
+                if (obj.discs[1].getbit(ind))
+                    value = 2;
+                out << value << ' ';
             }
             out << '\n';
         }
@@ -407,9 +470,6 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
                 //cerr << ' ';
             //cerr << myindex << " made a move " << cur << endl;
             int score = 0;
-            //for (int i=0; i<4-deep; ++i)
-                //cerr << ' ';
-            //cerr << "score: " << score << endl;
 
             if (deep > 1 && w.free != 0) {
                 pair<Point, int> bestMove = findBestMove(w, 3 - myindex, deep - 1, -beta, -alpha);
@@ -432,6 +492,10 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
             } else {
                 score = calcScore(w, myindex, deep);
             }
+
+            //for (int i=0; i<4-deep; ++i)
+                //cerr << ' ';
+            //cerr << "score: " << score << endl;
 
             if (score > bestScore) {
                 bestScore = score;
@@ -500,11 +564,34 @@ void initD() {
     }
 }
 
+void initLineMasks() {
+    for (int i=0; i<N; ++i) {
+        for (int u=0; u<N; ++u) {
+            Point cur{i, u};
+            for (int dir=0; dir<DIR; ++dir) {
+                newp = cur;
+
+                for (;;) {
+                    newp.x += dx[dir];
+                    newp.y += dy[dir];
+                    
+                    if (!inside(newp)) break;
+
+                    const int ind = index(newp.x, newp.y);
+                    lineMask2[i][u][ind] = lineMask1[i][u][dir];
+                    lineMask1[i][u][dir].togglebit(ind, 0);
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     initpoints();
     initaround();
     initcornermask();
     initD();
+    initLineMasks();
 
     World world;
     cin >> world;
@@ -516,8 +603,14 @@ int main(int argc, char** argv) {
 
     cerr << "World:\n" << world << endl;
 
+    //world.makeMove(Point{9, 2}, myindex);
+
+    //cerr << "world after move:\n" << world << endl;
+    //cerr << "empty frontier after move:\n" << world.emptyFrontier << endl;
+    //return 0;
+
     for (int depth=5; depth<=8; ++depth) {
-    //for (int depth=4; depth<=4; ++depth) {
+    //for (int depth=3; depth<=3; ++depth) {
         //cache.clear();
         try {
             pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF, INF);
@@ -525,9 +618,10 @@ int main(int argc, char** argv) {
             score = bestMove.second;
             cerr << "depth: " << depth << ", move: " << bestMove.first << ", score: " << bestMove.second << endl;
 
-            World w = world;
-            w.makeMove(mov, myindex);
+            //World w = world;
+            //w.makeMove(mov, myindex);
             //cerr << "after this move world:\n" << w << endl;
+            //cerr << "after this move empty frontier: \n" << w.emptyFrontier << endl;
 
             check = true;
         } catch (const TimeLimit& t) {
