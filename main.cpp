@@ -135,6 +135,11 @@ struct Mask {
         return __builtin_popcountll(mask & 0xFFFFFFFFFFFFFFFFull) + __builtin_popcountll(mask >> 64);
     }
 
+    Mask& operator ~() {
+        mask = ~mask;
+        return *this;
+    }
+
     Mask& operator &= (const Mask& ot) {
         mask &= ot.mask;
         return *this;
@@ -200,14 +205,14 @@ struct World {
                 if (s[newp.x][newp.y] == 0)
                     break;
 
-                if (s[newp.x][newp.y] == enemyindex) {
-                    hasEnemyInThisDir = true;
-                }
-
                 if (s[newp.x][newp.y] == myindex) {
                     canMove |= hasEnemyInThisDir;
                     hasMeInThisDir = true;
                     break;
+                }
+
+                if (s[newp.x][newp.y] == enemyindex) {
+                    hasEnemyInThisDir = true;
                 }
             }
 
@@ -221,8 +226,8 @@ struct World {
                         break;
 
                     s[newp.x][newp.y] = myindex;
-                    discs[myindex-1].togglebit(index(newp.x, newp.y), 0);
-                    discs[enemyindex-1].togglebit(index(newp.x, newp.y), 1);
+                    discs[myindex - 1].togglebit(index(newp.x, newp.y), 0);
+                    discs[enemyindex - 1].togglebit(index(newp.x, newp.y), 1);
                 }
             }
         }
@@ -232,19 +237,10 @@ struct World {
         --free;
 
         s[p.x][p.y] = myindex;
-        emptyFrontier.togglebit(index(p.x, p.y), 1);
-
-        for (int dir=0; dir<DIR; ++dir) {
-            newp.x = p.x + dx[dir];
-            newp.y = p.y + dy[dir];
-
-            if (inside(newp) && get(newp.x, newp.y) == 0) {
-                emptyFrontier.setbit(index(newp.x, newp.y));
-            }
-        }
-
         const int ind = index(p.x, p.y);
-        discs[myindex-1].setbit(ind);
+        discs[myindex - 1].togglebit(ind, 0);
+        emptyFrontier |= around[ind];
+        emptyFrontier &= ~(discs[0] | discs[1]);
 
         return true;
     }
@@ -298,7 +294,7 @@ struct World {
     }
 };
 
-int calcScore(const World& world, const int myindex, bool enemygo = true) {
+int calcScore(const World& world, const int myindex, int deep, bool enemygo = true) {
     int score = 0;
 
     const int enemyindex = 3 - myindex;
@@ -326,19 +322,19 @@ int calcScore(const World& world, const int myindex, bool enemygo = true) {
         if (world.discs[enemyindex - 1].mask == 0) {
             if (world.discs[myindex - 1].mask == 0)
                 throw runtime_error("world is invalid 3");
-            return INF;
+            return INF + deep; // the sooner I win, the better
         }
         if (world.discs[myindex - 1].mask == 0) {
             if (world.discs[enemyindex - 1].mask == 0)
                 throw runtime_error("world is invalid 4");
-            return -INF;
+            return -INF - deep; // the later I loose, the better
         }
 
         if (world.free == 0) {
             int mydiscs = world.discs[myindex - 1].bitcount();
             int enemydiscs = world.discs[enemyindex - 1].bitcount();
-            if (mydiscs > enemydiscs) return INF;
-            if (mydiscs < enemydiscs) return -INF;
+            if (mydiscs > enemydiscs) return INF + deep;
+            if (mydiscs < enemydiscs) return -INF - deep;
             return 0;
         }
     }
@@ -366,7 +362,7 @@ int calcScore(const World& world, const int myindex, bool enemygo = true) {
 
     // score for capturing the corner:
     Mask myCorner = cornerMask & world.discs[myindex - 1];
-    score += myCorner.bitcount() * 100;
+    score += myCorner.bitcount() * (100 + deep); // the earlier I get the corner, the better
 
     /*
     int corner = 0;
@@ -394,7 +390,7 @@ int calcScore(const World& world, const int myindex, bool enemygo = true) {
     */
 
     if (enemygo)
-        score -= calcScore(world, 3 - myindex, false);
+        score -= calcScore(world, 3 - myindex, deep, false);
 
     return score;
 }
@@ -438,11 +434,7 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
                 //cerr << ' ';
             //cerr << myindex << " made a move " << cur << endl;
             int score = 0;
-            score = calcScore(w, myindex);
-            if (score == INF)
-                score = INF + deep; // the sooner I win, the better
-            if (score == -INF)
-                score = -INF - deep; // the later I loose, the better
+            score = calcScore(w, myindex, deep);
             //for (int i=0; i<4-deep; ++i)
                 //cerr << ' ';
             //cerr << "score: " << score << endl;
