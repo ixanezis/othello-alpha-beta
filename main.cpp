@@ -403,8 +403,8 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
     for (; mask.mask != 0; ) {
         //cerr << "mask:\n" << mask << endl;
         const Point& cur = points[mask.removeRightMost()];
-        if (world.get(cur.x, cur.y) != 0)
-            throw runtime_error("empty frontier is invalid");
+        //if (world.get(cur.x, cur.y) != 0)
+            //throw runtime_error("empty frontier is invalid");
 
         World w = world;
         if (w.makeMove(cur, myindex)) {
