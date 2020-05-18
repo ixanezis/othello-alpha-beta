@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -31,7 +33,7 @@ struct Mask {
     }
 
     int leftMost() const {
-        return __builtin_clzll(mask);
+        return 63 - __builtin_clzll(mask);
     }
 
     int closest(const int dir) const {
