@@ -93,7 +93,7 @@ struct Point {
     }
 
     friend std::ostream& operator <<(std::ostream& out, const Point& obj) {
-        return out << obj.x << ' ' << obj.y;
+        return out << static_cast<char>(obj.y + 'A') << obj.x + 1;
     }
 
     bool operator < (const Point& p) const {

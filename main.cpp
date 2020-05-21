@@ -83,6 +83,9 @@ struct World {
             for (int u=0; u<N; ++u) {
                 int cur;
                 in >> cur;
+                if (!in) {
+                    return in;
+                }
                 if (cur == 3)
                     cur = 0;
 
@@ -244,63 +247,41 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
 }
 
 int main(int argc, char** argv) {
-    start = std::chrono::system_clock::now();
     init();
 
-    World world;
-    cin >> world;
-
-    int myindex; cin >> myindex;
-
-    Point mov;
-    int score = -INF;
-
-    cerr << "World:\n" << world << endl;
-    cerr << "free cells: " << world.free << endl;
-    int maxdepth = 0;
-
-    /*
-    cerr << "world empty:\n" << world.empty << endl;
-    cerr << "world frontier[0]:\n" << world.frontier[0] << endl;
-    cerr << "world frontier[1]:\n" << world.frontier[1] << endl;
-    cerr << "world frontier[0] & empty:\n" << (world.frontier[0] & world.empty) << endl;
-    cerr << "world frontier[1] & empty:\n" << (world.frontier[1] & world.empty) << endl;
-
-    return 0;
-    */
-    //world.makeMove(Point{9, 3}, 1);
-    //cout << "World after this move:\n" << world << endl;
-    //return 0;
-
-    for (int depth=6; depth<=23; ++depth) {
-    //for (int depth=20; depth<=20; ++depth) {
-        try {
-            firstdeep = depth;
-            pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF - 111, INF + 111);
-            mov = bestMove.first;
-            score = bestMove.second;
-            cerr << "depth: " << depth << ", move: " << bestMove.first << ", score: " << bestMove.second << endl;
-
-            //cerr << "g_sum: " << g_sum << endl;
-            //cerr << "visitedPositions: " << visitedPositions.size() << endl;
-            //World w = world;
-            //w.makeMove(mov, myindex);
-            //cerr << "after this move world:\n" << w << endl;
-            //cerr << "after this move empty frontier:\n" << w.emptyFrontier[0] << endl;
-            //cerr << "after this move empty frontier:\n" << w.emptyFrontier[1] << endl;
-
-            check = true;
-            maxdepth = depth;
-        } catch (const TimeLimit& t) {
-            break;
+    for (int turn = 0; ; ++turn) {
+        start = std::chrono::system_clock::now();
+        World world;
+        if (!(cin >> world)) {
+          break;
         }
-    }
 
-    cout << mov << endl;
-    cerr << score << ' ' << maxdepth << endl;
-    cerr << "Elapsed: " << elapsed() << endl;
-#ifdef DEBUG
-    ofstream fout("elapsed.txt", fstream::app);
-    fout << elapsed() << endl;
-#endif
+        int myindex; cin >> myindex;
+
+        Point mov;
+        int score = -INF; cerr << "World:\n" << world << endl;
+        cerr << "free cells: " << world.free << endl;
+        int maxdepth = 0;
+        check = false;
+
+        //for (int depth=6; depth<=23; ++depth) {
+        for (int depth=5; depth<=5; ++depth) {
+            try {
+                firstdeep = depth;
+                pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF - 111, INF + 111);
+                mov = bestMove.first;
+                score = bestMove.second;
+                cerr << "depth: " << depth << ", move: " << bestMove.first << ", score: " << bestMove.second << endl;
+
+                check = true;
+                maxdepth = depth;
+            } catch (const TimeLimit& t) {
+                break;
+            }
+        }
+
+        cout << mov << endl;
+        cerr << "Score " << score << " at depth " << maxdepth << endl;
+        cerr << "Elapsed: " << elapsed() << endl;
+    }
 }
