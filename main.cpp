@@ -268,7 +268,11 @@ int main(int argc, char** argv) {
             }
         }
 
-        cout << mov << endl;
+        if (mov.x == -1) {
+          cout << "pass" << endl;
+        } else {
+          cout << mov << endl;
+        }
         cerr << "Score " << score << " at depth " << maxdepth << endl;
         cerr << "Elapsed: " << elapsed() << endl;
     }
