@@ -136,11 +136,6 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo, boo
         return 0;
     }
 
-    //if (enemygo)
-        //cerr << "Calculating score for world: (index " << myindex << ")\n" << world << endl;
-
-    //score += world.discs[myindex - 1].bitcount();
-
     Mask emptyFrontier = world.frontier[myindex - 1] & world.empty;
     score -= emptyFrontier.bitcount();
 
@@ -150,9 +145,6 @@ int calcScore(const World& world, const int myindex, int deep, bool enemygo, boo
 
     Mask contactEnemy = world.frontier[myindex - 1] & world.discs[enemyindex - 1];
     score += contactEnemy.bitcount();
-
-    //Mask myBorder = borderMask & world.discs[myindex - 1];
-    //score -= myBorder.bitcount() * 5;
 
     if (world.free >= 30)
         score -= mydiscs / 4;
@@ -228,10 +220,6 @@ pair<Point, int> findBestMove(const World& world, const int myindex, const int d
                 //score = -m.first;
             }
 
-            //for (int i=0; i<4-deep; ++i)
-                //cerr << ' ';
-            //cerr << "score: " << score << endl;
-
             if (score > bestScore) {
                 bestScore = score;
                 bestMove = cur;
@@ -264,8 +252,8 @@ int main(int argc, char** argv) {
         int maxdepth = 0;
         check = false;
 
-        //for (int depth=6; depth<=23; ++depth) {
-        for (int depth=5; depth<=5; ++depth) {
+        for (int depth=6; ; ++depth) {
+        //for (int depth=3; depth<=3; ++depth) {
             try {
                 firstdeep = depth;
                 pair<Point, int> bestMove = findBestMove(world, myindex, depth, -INF - 111, INF + 111);
